@@ -1,5 +1,8 @@
 import { buildApp } from './app.js'
 
+const HOST = process.env.HOST || '127.0.0.1'
+const PORT = Number(process.env.PORT || 3000)
+
 const app = buildApp({
   logger: {
     redact: ['req.headers.authorization'],
@@ -21,8 +24,8 @@ process.once('SIGTERM', shutdown)
 
 try {
   await app.listen({
-    host: process.env.HOST ?? '127.0.0.1',
-    port: Number(process.env.PORT ?? 3000),
+    host: HOST,
+    port: PORT,
   })
 }
 catch (error) {

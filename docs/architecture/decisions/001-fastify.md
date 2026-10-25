@@ -9,7 +9,7 @@ The GitHub token broker has its own repository and deployment, separate from the
 
 ## Decision
 
-Use **Fastify**, with JavaScript ES modules. The architect selected Fastify after comparing it with Express and has used it more recently.
+Use **Fastify**, with TypeScript ES modules on Node 24 LTS and Vitest for tests. The architect selected Fastify after comparing it with Express and has used it more recently. TypeScript, Node 24 and Vitest follow the bootstrap PR review.
 
 - Integrated Pino logging, enabled explicitly, and built-in HTTP injection support reduce setup work.
 - Route schemas and lifecycle hooks are available when needed; Kubernetes authentication and scope policy remain application code.
@@ -36,3 +36,4 @@ Framework capabilities checked against primary documentation. Bootstrap validati
 |---|---|---|
 | 2026-10-25 | Separate broker repository; no UI | Preserve independent deployment and keep Nuxt for workflow/artifact services and their future UI. |
 | 2026-10-25 | Select Fastify over Express | Useful API facilities and more recent architect familiarity. |
+| 2026-10-25 | Adopt TypeScript, Node 24 LTS and Vitest | Architect's bootstrap review replaces the initial JavaScript, Node 22 and Node test-runner defaults. |

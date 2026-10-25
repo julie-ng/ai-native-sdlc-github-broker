@@ -4,6 +4,6 @@ Broker-specific decisions live here. Platform trust, identity and signing decisi
 
 | ADR | Decision | Status |
 |---|---|---|
-| [001](./001-fastify.md) | Standalone Fastify API, JavaScript | Accepted — bootstrap in separate PR; broker exchange not implemented |
+| [001](./001-fastify.md) | Standalone Fastify API, TypeScript | Accepted — bootstrap in separate PR; broker exchange not implemented |
 
 Implementation sequence: [broker plan](../../plans/github-token-broker.md).

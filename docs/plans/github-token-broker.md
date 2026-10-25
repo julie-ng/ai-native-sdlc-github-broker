@@ -5,7 +5,7 @@
 
 ## Scope and design references
 
-Build the standalone GitHub token broker as the first platform service, using JavaScript and Fastify. It has its own repository/deployment and no UI. Prove pod authentication and repository/role-scoped GitHub access, then evaluate reuse for artifact authentication. [Framework decision](../architecture/decisions/001-fastify.md).
+Build the standalone GitHub token broker as the first platform service, using TypeScript and Fastify on Node 24 LTS, with Vitest for tests. It has its own repository/deployment and no UI. Prove pod authentication and repository/role-scoped GitHub access, then evaluate reuse for artifact authentication. [Framework decision](../architecture/decisions/001-fastify.md).
 
 - [Broker architecture](https://github.com/julie-ng/ai-native-sdlc/blob/main/architecture/reference/token-broker.md): credential flow and trust model.
 - [ADR-003](https://github.com/julie-ng/ai-native-sdlc/blob/main/architecture/decisions/003-platform-services-vs-agent-pods.md): trusted services versus untrusted agent pods.
@@ -18,9 +18,9 @@ Service code and its tests belong in this repository. Build plans live in `docs/
 
 ### 0. Merge the Fastify bootstrap
 
-Review the independent bootstrap branch before implementing the exchange: application factory, server entry point, health endpoint, logging, npm lockfile, lint and process tests. It needs no Kubernetes, GitHub or Azure credentials.
+Review the independent bootstrap branch before implementing the exchange: application factory, server entry point, health endpoint, logging, npm lockfile, lint, TypeScript build/type checking and Vitest process tests. It needs no Kubernetes, GitHub or Azure credentials.
 
-**Go/no-go:** a clean install, lint and startup/shutdown checks pass. This establishes the service foundation, not broker authentication or issuance. This documentation branch can be reviewed/merged independently.
+**Go/no-go:** a clean install, lint, type checking, build and startup/shutdown checks pass on Node 24. This establishes the service foundation, not broker authentication or issuance. This documentation branch can be reviewed/merged independently.
 
 ### 1. Set the initial permission and assignment contract
 
@@ -28,7 +28,7 @@ Review the independent bootstrap branch before implementing the exchange: applic
 - Confirm the intended GitHub App, human owner, installation and selected repositories. Use disposable private repositories A and B; install the App on both so the test can distinguish token downscoping from installation restrictions.
 - Record the trusted assignment fields: workflow run ID, logical step ID, attempt, repository and ServiceAccount. A run contains multiple step/attempt pods; a pod is not the whole run.
 - For the first proof, trusted test manifests supply assignments and broker configuration lists permitted repositories/installations. This avoids requiring a workflow service or database before the broker can be tested.
-- Use JavaScript ES modules and Fastify. Select maintained Kubernetes/GitHub clients when implementing their integration; the bootstrap does not need those dependencies.
+- Use TypeScript ES modules and Fastify. Select maintained Kubernetes/GitHub clients when implementing their integration; the bootstrap does not need those dependencies.
 
 **Ready to build when:** test operations, expected grants/denials, assignment fields and App setup responsibilities are explicit. Architect/coder naming in ADR-014 still needs reconciliation with planner/coder/reviewer/open-PR permissions; do not silently give a new role write access.
 
@@ -128,6 +128,7 @@ HMAC remains the documented artifact authentication mechanism until that decisio
 |---|---|---|
 | 2026-10-25 | Move the plan to the standalone broker repository under `docs/plans/` | Broker has its own repository; workflow/artifact services retain the separate platform-services repository. |
 | 2026-10-25 | Use Fastify with no UI | Architect selected Fastify after comparison with Express; see the broker framework ADR. |
+| 2026-10-25 | Use TypeScript, Node 24 and Vitest | Incorporate the architect's bootstrap PR review into the plan. |
 | 2026-10-25 | Keep bootstrap and plan on independent branches | Review the foundation separately without stacking documentation on unmerged implementation. |
 | 2026-10-25 | Plan broker first, with direct-pod verification before Argo/model integration | Establish identity and actual scope enforcement before adding execution layers. |
 | 2026-10-25 | Propose trusted test assignments for the first proof | Avoid making the workflow service/database a prerequisite; production assignment admission remains later work. |

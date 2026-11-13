@@ -21,7 +21,11 @@ export default defineConfig({
           },
         ]),
       ],
-      sidebar: [{ slug: 'index' }, ...openAPISidebarGroups],
+      sidebar: [
+        { slug: 'index' },
+        { slug: 'github-issuer' },
+        ...openAPISidebarGroups,
+      ],
     }),
   ],
 })

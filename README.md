@@ -3,7 +3,7 @@
 Standalone Fastify API for issuing short-lived GitHub installation tokens to agent pods. Platform design: [broker architecture](https://github.com/julie-ng/ai-native-sdlc/blob/main/architecture/reference/token-broker.md).
 
 > [!NOTE]
-> The token exchange contract and policy are implemented with injected dependencies. GitHub and Kubernetes adapters are implemented; server wiring is separate work. No UI.
+> The token exchange contract and policy are implemented with injected dependencies. The server wires GitHub and Kubernetes adapters from startup environment configuration. No UI.
 
 ## Development
 
@@ -41,7 +41,7 @@ Route schemas must have `summary` and `description`; keep their tags, request/re
 
 `src/app.ts` constructs the application without opening a socket. `src/server.ts` defines `HOST`/`PORT` near the top, configures logging, starts the listener and handles shutdown. Production logging uses Fastify's Pino integration with authorization-header redaction.
 
-Local imports use `.js` extensions so compiled ES modules run directly in Node. The build emits service code only; Vitest handles the TypeScript test files. No credentials are needed to run the bootstrap or tests. Container packaging and deployment belong to later broker work.
+Local imports use `.js` extensions so compiled ES modules run directly in Node. The build emits service code only; Vitest handles the TypeScript test files. Tests generate disposable RSA keys and use no real credentials or network dependencies. Running the server requires the configuration below.
 
 ## Token exchange
 
@@ -84,7 +84,7 @@ The looked-up pod's UID and ServiceAccount must match the reviewed token. Its `a
 
 The route plugin is explicitly registered from `src/routes/v1/github-token.post.ts`. Directories and the `.post.ts` suffix describe the URL and method; Fastify's route declaration implements them, without an autoload dependency.
 
-`src/server.ts` still calls `buildApp` without adapters, so `npm start` exposes only `/healthz`. Real adapters, allowlist environment parsing and server wiring are outside [issue #6](https://github.com/julie-ng/ai-native-sdlc-github-broker/issues/6). Run/step/attempt labels and production hardening are also deferred.
+`src/server.ts` validates configuration and supplies both adapters and the repository allowlist to `buildApp`, exposing `/healthz` and `/v1/github-token`. Run/step/attempt labels and production hardening are also deferred.
 
 Run `npm run lint`, `npm run typecheck` and `npm test` on Node 24. `test/routes/v1/github-token.post.test.ts` uses Fastify `inject()` and mocked dependencies to verify the contract, exact issuance scope, call order, authorization denials and sanitized dependency failures. It needs no network, cluster, key or credentials. The existing `test/app.test.ts` process tests require permission to bind a loopback socket.
 
@@ -92,18 +92,55 @@ Run `npm run lint`, `npm run typecheck` and `npm test` on Node 24. `test/routes/
 
 `createKubernetesAdapters()` in `src/kubernetes-adapters.ts` implements `TokenValidator` with `POST /apis/authentication.k8s.io/v1/tokenreviews` and `PodLookup` with `GET /api/v1/namespaces/{namespace}/pods/{podName}`. It uses the broker's mounted ServiceAccount token, explicit `token-broker` audience, 30-second timeouts and rejected redirects. Failed authentication (including `status.error`) returns an unauthenticated result; API/transport failures throw a sanitized `KubernetesDependencyError` for the endpoint's `503` response.
 
-The broker ServiceAccount needs cluster-wide `tokenreviews: create` in API group `authentication.k8s.io` and core `pods: get` in namespace `agents`. Configure `KUBERNETES_API_URL` and `KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH` to override the default in-cluster API and mounted token path. Set `NODE_EXTRA_CA_CERTS=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` before starting Node to trust the cluster CA. See the [Kubernetes adapter guide](docs-site/src/content/docs/kubernetes-adapters.md) for configuration and error semantics. Server wiring and RBAC/deployment manifests remain separate work.
+The broker ServiceAccount needs cluster-wide `tokenreviews: create` in API group `authentication.k8s.io` and core `pods: get` in namespace `agents`. Configure `KUBERNETES_API_URL` and `KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH` to override the default in-cluster API and mounted token path. Set `NODE_EXTRA_CA_CERTS=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` before starting Node to trust the cluster CA. See the [Kubernetes adapter guide](docs-site/src/content/docs/kubernetes-adapters.md) for configuration and error semantics. Infrastructure owns the RBAC; deployment manifests are in `manifests/`.
 
 ## GitHub issuer adapter
 
-`createGitHubTokenIssuer()` in `src/github-token-issuer.ts` reads `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY_PATH` at startup and returns a `TokenIssuer`. It loads the mounted RSA PEM once, converting PKCS#1 to PKCS#8 in memory. Every GitHub token request sends exactly one `repository_ids` entry and the explicit role `permissions`; installation tokens are never cached. GitHub's expiry is returned unchanged, and failures become sanitized `GitHubTokenIssuerError` instances. Startup errors identify missing/invalid configuration, unreadable files, invalid keys and non-RSA keys using fixed messages; issuance errors stay generic. Server wiring remains separate; `npm start` still exposes only `/healthz`.
+`createGitHubTokenIssuer()` in `src/github-token-issuer.ts` reads `GH_APP_ID` and `GH_APP_PRIVATE_KEY_PATH` at startup and returns a `TokenIssuer`. It loads the mounted RSA PEM once, converting PKCS#1 to PKCS#8 in memory. Every GitHub token request sends exactly one `repository_ids` entry and the explicit role `permissions`; installation tokens are never cached. GitHub's expiry is returned unchanged, and failures become sanitized `GitHubTokenIssuerError` instances. Startup errors identify missing/invalid configuration, unreadable files, invalid keys and non-RSA keys using fixed messages; issuance errors stay generic. The server constructs the issuer at startup; no upstream request is made until token issuance.
 
 See the [issuer guide](docs-site/src/content/docs/github-issuer.md) for configuration, request details and offline verification. The docs site includes the guide under “GitHub token issuer”.
+
+## Configuration and deployment
+
+| Variable | Requirement / default |
+|---|---|
+| GH_APP_ID | Required numeric App ID |
+| GH_APP_PRIVATE_KEY_PATH | Required readable RSA PEM file path |
+| GH_REPOSITORIES | Required nonempty JSON object, e.g. `{"example/repo":{"repositoryId":123,"installationId":456}}`; IDs must be positive safe integers |
+| KUBERNETES_API_URL | HTTPS origin; defaults to `https://kubernetes.default.svc` |
+| KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH | Defaults to `/var/run/secrets/kubernetes.io/serviceaccount/token` |
+| NODE_EXTRA_CA_CERTS | Set before Node starts; in cluster, `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` |
+| HOST / PORT | `127.0.0.1` / `3000`; container sets HOST to `0.0.0.0` |
+
+Invalid configuration exits before listening with fixed diagnostics that omit supplied values. Startup reads the App key but does not contact GitHub or Kubernetes. Kubernetes token reads happen per request; the default ServiceAccount token automount must remain enabled. Node loads CA trust at process startup.
+
+Build locally with `docker build -t github-broker:local .`. Supply configuration using `docker run --env-file <local-env-file> --mount type=bind,src=<absolute-key-file>,dst=/mnt/app.pem,readonly -e GH_APP_PRIVATE_KEY_PATH=/mnt/app.pem -p 3000:3000 github-broker:local`. The image uses the pinned platform-services Node 24 base, production dependencies and the non-root node user. The Docker context allows only build inputs.
+
+GitHub Actions verifies pull requests and pushes to main. After checks pass on a push to main, the production environment publishes `<acr>.azurecr.io/github-broker:latest` and `sha-<full-commit>`. Configure production environment variable `AZURE_ACR_NAME` and secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` for Azure OIDC, following platform-services. The first real publication happens after merge.
+
+Infrastructure must provide namespace github-broker, ServiceAccount token-broker with workload identity, RBAC for TokenReview and pod lookup, ACR pull access, and SecretProviderClass github-broker-secrets exposing token-broker-gh-app-private-key. This change does not deploy infrastructure or run the live pod exchange test.
+
+```sh
+cp manifests/.env.example manifests/.env
+# Edit manifests/.env with real names and IDs (gitignored).
+set -a
+. manifests/.env
+set +a
+envsubst '$AZURE_ACR_NAME $GH_APP_ID $GH_REPOSITORIES' < manifests/deployment.yaml | kubectl apply -f -
+kubectl apply -f manifests/service.yaml
+kubectl -n github-broker rollout status deployment/github-broker
+kubectl -n github-broker get pods
+kubectl -n github-broker logs deployment/github-broker
+```
+
+The in-cluster URL is http://github-broker.github-broker.svc.cluster.local. The readiness probe uses /healthz, which checks the process only. To inspect it locally, run `kubectl -n github-broker port-forward service/github-broker 3000:80` and `curl http://127.0.0.1:3000/healthz`. After publishing a new latest image, use `kubectl -n github-broker rollout restart deployment/github-broker`.
 
 ## Decision log
 
 | Date | Decision | Reasoning |
 |---|---|---|
+| 2026-11-13 | Use GH_ for broker GitHub configuration variables | Align deployment configuration with the requested GitHub Actions variable names. |
+| 2026-11-13 | Wire startup adapters and ship a container, CI publication and plain envsubst manifests (#14) | Preserve Kubernetes defaults, reject empty allowlists, and fail before listening with fixed diagnostics. Infrastructure and human-run live tests remain separate. |
 | 2026-11-13 | Implement Kubernetes adapters with native fetch, startup-configured CA trust and per-call reads of the broker token file | Keep the two-call MVP dependency-free and observe projected-token updates without caching credentials. As clarified in [#8](https://github.com/julie-ng/ai-native-sdlc-github-broker/issues/8#issuecomment-6853981045), nonempty TokenReview status.error means unauthenticated (401); transport/HTTP failures remain dependency errors (503). |
 | 2026-11-13 | Generate an API reference with Swagger 9, Astro and the default Starlight theme, per [#10](https://github.com/julie-ng/ai-native-sdlc-github-broker/issues/10) | Swagger 9 supports Fastify 5. Reuse the reference repo's pinned Astro/Starlight/OpenAPI renderer versions; omit its TypeDoc, Tailwind and component overrides. Keep generation offline and out of the broker runtime. |
 | 2026-11-13 | Use `@octokit/auth-app` for App JWT signing and Node fetch for each installation-token request | Avoid hand-written signing and bypass the library's installation-token cache; each issuance sends explicit repository and permission scope. PKCS#1 keys are normalized to PKCS#8 in memory at startup. |

@@ -3,7 +3,7 @@ title: Kubernetes adapters
 description: TokenReview and pod lookup configuration, permissions and failure behavior.
 ---
 
-`createKubernetesAdapters()` in `src/kubernetes-adapters.ts` returns the injected `tokenValidator` and `podLookup` functions. Both use Node's built-in `fetch`; no Kubernetes client library is needed. Server wiring remains separate work, so `npm start` still exposes only `/healthz`.
+`createKubernetesAdapters()` in `src/kubernetes-adapters.ts` returns the injected `tokenValidator` and `podLookup` functions. Both use Node's built-in `fetch`; no Kubernetes client library is needed. The server constructs these adapters at startup and wires `/v1/github-token`; see the repository README for configuration and deployment.
 
 ## Configuration
 

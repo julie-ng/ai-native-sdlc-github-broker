@@ -32,6 +32,8 @@ Local imports use `.js` extensions so compiled ES modules run directly in Node. 
 
 `POST /v1/github-token` accepts `Authorization: Bearer <projected Kubernetes token>`. The body must be absent or an empty JSON object (`{}`). Any query string, extra body field, malformed body or unsupported content type returns `400`. Validation runs before Fastify's schema processing can strip properties or coerce input.
 
+Send no body without a JSON content type, or send `{}` as JSON. An empty body with `Content-Type: application/json` returns `400 invalid_request` from Fastify's JSON parser.
+
 Success returns `200`, `Cache-Control: no-store`, and:
 
 ```json
@@ -77,8 +79,8 @@ Run `npm run lint`, `npm run typecheck` and `npm test` on Node 24. `test/routes/
 |---|---|---|
 | 2026-11-13 | Adopt the platform-services ESLint formatting rules in `eslint.config.mjs` | Keep formatting consistent across services. Retain this Fastify service's TypeScript base; the source config's Nuxt wrapper and JSDoc rules for absent `server/utils` and `server/db` directories do not apply here. |
 | 2026-11-13 | Implement the issue #6 MVP with injected functions and a server-side repository allowlist | Keep policy testable offline; real adapters and server wiring belong to separate issues. |
-| 2026-11-13 | Use the planner/coder permissions above and omit run/step/attempt labels | Planner reads and clones; coder opens its own PR. Workflow traceability waits for the workflow service. Approved in the implementation plan. |
-| 2026-11-13 | Explicitly register route plugins under `src/routes/<version>/<resource>.<method>.ts` | Make URL and method visible in filenames while retaining native Fastify registration without autoload. |
+| 2026-11-13 | Implement the proposed permissions: planner `contents: read`, `issues: read`; coder `contents: write`, `pull_requests: write`, `issues: read`; no run, step or attempt labels | Planner reads and clones; coder opens its own PR. Workflow traceability waits for the workflow service. Proposed in [#6](https://github.com/julie-ng/ai-native-sdlc-github-broker/issues/6) and discussed with the human developer at a high level on 2026-11-13; not reviewed in detail. Open for confirmation in the [PR #9 review](https://github.com/julie-ng/ai-native-sdlc-github-broker/pull/9). |
+| 2026-11-13 | Explicitly register route plugins under `src/routes/<version>/<resource>.<method>.ts` | Make URL and method visible in filenames while retaining native Fastify registration without autoload. Discussed with the human developer at a high level on 2026-11-13; not reviewed in detail. Keep this convention as requested in the [PR #9 review](https://github.com/julie-ng/ai-native-sdlc-github-broker/pull/9#discussion_r4563085759). |
 | 2026-10-25 | Bootstrap a standalone Fastify application | Broker has no UI and remains separate from workflow/artifact services. |
 | 2026-10-25 | Use TypeScript ES modules, Node 24 LTS and Vitest | Architect's PR review supersedes the initial JavaScript, Node 22 and Node test-runner defaults. |
 | 2026-10-25 | Compile for production; use `tsx` for development | Type-check explicitly and test the compiled process that production will run. |

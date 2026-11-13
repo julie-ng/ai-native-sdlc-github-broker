@@ -64,6 +64,26 @@ function fixture() {
   }
 }
 
+test('rejects an empty body with a JSON content type', async ({ onTestFinished }) => {
+  const f = fixture()
+  onTestFinished(() => f.app.close())
+  const response = await f.app.inject({
+    method: 'POST',
+    url: '/v1/github-token',
+    headers: {
+      ...headers,
+      'content-type': 'application/json',
+      'content-length': '0',
+    },
+    payload: '',
+  })
+  expect(response.statusCode).toBe(400)
+  expect(response.json()).toEqual({ error: { code: 'invalid_request' } })
+  expect(f.tokenValidator).not.toHaveBeenCalled()
+  expect(f.podLookup).not.toHaveBeenCalled()
+  expect(f.tokenIssuer).not.toHaveBeenCalled()
+})
+
 for (const role of ['planner', 'coder']) {
   test(`issues a scoped token for ${role}`, async ({ onTestFinished }) => {
     const f = fixture()

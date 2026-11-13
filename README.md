@@ -3,7 +3,7 @@
 Standalone Fastify API for issuing short-lived GitHub installation tokens to agent pods. Platform design: [broker architecture](https://github.com/julie-ng/ai-native-sdlc/blob/main/architecture/reference/token-broker.md).
 
 > [!NOTE]
-> The token exchange contract and policy are implemented with injected dependencies. Real Kubernetes and GitHub adapters and their server wiring are separate work. No UI.
+> The token exchange contract and policy are implemented with injected dependencies. The GitHub issuer adapter is implemented; Kubernetes adapters and server wiring are separate work. No UI.
 
 ## Development
 
@@ -88,11 +88,18 @@ The route plugin is explicitly registered from `src/routes/v1/github-token.post.
 
 Run `npm run lint`, `npm run typecheck` and `npm test` on Node 24. `test/routes/v1/github-token.post.test.ts` uses Fastify `inject()` and mocked dependencies to verify the contract, exact issuance scope, call order, authorization denials and sanitized dependency failures. It needs no network, cluster, key or credentials. The existing `test/app.test.ts` process tests require permission to bind a loopback socket.
 
+## GitHub issuer adapter
+
+`createGitHubTokenIssuer()` in `src/github-token-issuer.ts` reads `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY_PATH` at startup and returns a `TokenIssuer`. It loads the mounted RSA PEM once, converting PKCS#1 to PKCS#8 in memory. Every GitHub token request sends exactly one `repository_ids` entry and the explicit role `permissions`; installation tokens are never cached. GitHub's expiry is returned unchanged, and failures become sanitized `GitHubTokenIssuerError` instances. Server wiring remains separate; `npm start` still exposes only `/healthz`.
+
+See the [issuer guide](docs-site/src/content/docs/github-issuer.md) for configuration, request details and offline verification. The docs site includes the guide under “GitHub token issuer”.
+
 ## Decision log
 
 | Date | Decision | Reasoning |
 |---|---|---|
 | 2026-11-13 | Generate an API reference with Swagger 9, Astro and the default Starlight theme, per [#10](https://github.com/julie-ng/ai-native-sdlc-github-broker/issues/10) | Swagger 9 supports Fastify 5. Reuse the reference repo's pinned Astro/Starlight/OpenAPI renderer versions; omit its TypeDoc, Tailwind and component overrides. Keep generation offline and out of the broker runtime. |
+| 2026-11-13 | Use `@octokit/auth-app` for App JWT signing and Node fetch for each installation-token request | Avoid hand-written signing and bypass the library's installation-token cache; each issuance sends explicit repository and permission scope. PKCS#1 keys are normalized to PKCS#8 in memory at startup. |
 | 2026-11-13 | Adopt the platform-services ESLint formatting rules in `eslint.config.mjs` | Keep formatting consistent across services. Retain this Fastify service's TypeScript base; the source config's Nuxt wrapper and JSDoc rules for absent `server/utils` and `server/db` directories do not apply here. |
 | 2026-11-13 | Implement the issue #6 MVP with injected functions and a server-side repository allowlist | Keep policy testable offline; real adapters and server wiring belong to separate issues. |
 | 2026-11-13 | Implement the proposed permissions: planner `contents: read`, `issues: read`; coder `contents: write`, `pull_requests: write`, `issues: read`; no run, step or attempt labels | Planner reads and clones; coder opens its own PR. Workflow traceability waits for the workflow service. Proposed in [#6](https://github.com/julie-ng/ai-native-sdlc-github-broker/issues/6) and discussed with the human developer at a high level on 2026-11-13; not reviewed in detail. Open for confirmation in the [PR #9 review](https://github.com/julie-ng/ai-native-sdlc-github-broker/pull/9). |

@@ -1,0 +1,93 @@
+import { createPrivateKey } from 'node:crypto'
+import { readFile } from 'node:fs/promises'
+import { createAppAuth } from '@octokit/auth-app'
+import type { TokenIssuer } from './token-exchange.types.js'
+
+export class GitHubTokenIssuerError extends Error {
+  constructor() {
+    super('GitHub token issuance unavailable')
+    this.name = 'GitHubTokenIssuerError'
+  }
+}
+
+// Call once during startup. Server wiring is deliberately separate from this adapter.
+export async function createGitHubTokenIssuer(
+  env: Partial<Pick<NodeJS.ProcessEnv, 'GITHUB_APP_ID' | 'GITHUB_APP_PRIVATE_KEY_PATH'>> = process.env,
+): Promise<TokenIssuer> {
+  try {
+    const appId = env.GITHUB_APP_ID
+    const keyPath = env.GITHUB_APP_PRIVATE_KEY_PATH
+    if (!appId || !/^\d+$/.test(appId) || !keyPath) {
+      throw new GitHubTokenIssuerError()
+    }
+    // Node accepts GitHub's PKCS#1 PEM; export PKCS#8 for the auth library.
+    const key = createPrivateKey(await readFile(keyPath, 'utf8'))
+    if (key.asymmetricKeyType !== 'rsa') {
+      throw new GitHubTokenIssuerError()
+    }
+    const auth = createAppAuth({
+      appId,
+      privateKey: key.export({
+        type: 'pkcs8',
+        format: 'pem',
+      }).toString(),
+    })
+    return async ({
+      repositoryId, installationId, permissions,
+    }) => {
+      try {
+        // Reject missing scope even for callers outside TypeScript; JSON must never
+        // omit either field and silently inherit the installation's full grants.
+        const scope = { ...permissions }
+        if (!Number.isSafeInteger(repositoryId) || repositoryId <= 0
+          || !Number.isSafeInteger(installationId) || installationId <= 0
+          || !['read', 'write'].includes(scope.contents) || scope.issues !== 'read'
+          || (scope.pull_requests !== undefined && scope.pull_requests !== 'write')
+          || Object.keys(scope).some(key => ![
+            'contents',
+            'issues',
+            'pull_requests',
+          ].includes(key))) {
+          throw new GitHubTokenIssuerError()
+        }
+        const { token: jwt } = await auth({ type: 'app' })
+        // Use only App JWT authentication, never Octokit's installation-token API
+        // or its cache. Every issuance makes a fresh, explicitly scoped request.
+        const response = await fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, {
+          method: 'POST',
+          headers: {
+            authorization: `Bearer ${jwt}`,
+            accept: 'application/vnd.github+json',
+            'x-github-api-version': '2026-03-10',
+            'user-agent': 'ai-native-sdlc-github-broker',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            repository_ids: [repositoryId],
+            permissions: scope,
+          }),
+        })
+        if (!response.ok) {
+          await response.body?.cancel()
+          throw new GitHubTokenIssuerError()
+        }
+        const result: unknown = await response.json()
+        if (typeof result !== 'object' || result === null
+          || !('token' in result) || typeof result.token !== 'string' || !result.token
+          || !('expires_at' in result) || typeof result.expires_at !== 'string'
+          || !Number.isFinite(Date.parse(result.expires_at))) {
+          throw new GitHubTokenIssuerError()
+        }
+        return {
+          token: result.token,
+          expiresAt: result.expires_at,
+        }
+      } catch {
+        // No cause: upstream exceptions can contain credentials, headers or bodies.
+        throw new GitHubTokenIssuerError()
+      }
+    }
+  } catch {
+    throw new GitHubTokenIssuerError()
+  }
+}

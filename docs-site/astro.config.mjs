@@ -24,6 +24,7 @@ export default defineConfig({
       sidebar: [
         { slug: 'index' },
         { slug: 'github-issuer' },
+        { slug: 'kubernetes-adapters' },
         ...openAPISidebarGroups,
       ],
     }),

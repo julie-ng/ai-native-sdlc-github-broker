@@ -3,7 +3,7 @@
 Standalone Fastify API for issuing short-lived GitHub installation tokens to agent pods. Platform design: [broker architecture](https://github.com/julie-ng/ai-native-sdlc/blob/main/architecture/reference/token-broker.md).
 
 > [!NOTE]
-> The token exchange contract and policy are implemented with injected dependencies. The GitHub issuer adapter is implemented; Kubernetes adapters and server wiring are separate work. No UI.
+> The token exchange contract and policy are implemented with injected dependencies. GitHub and Kubernetes adapters are implemented; server wiring is separate work. No UI.
 
 ## Development
 
@@ -88,6 +88,12 @@ The route plugin is explicitly registered from `src/routes/v1/github-token.post.
 
 Run `npm run lint`, `npm run typecheck` and `npm test` on Node 24. `test/routes/v1/github-token.post.test.ts` uses Fastify `inject()` and mocked dependencies to verify the contract, exact issuance scope, call order, authorization denials and sanitized dependency failures. It needs no network, cluster, key or credentials. The existing `test/app.test.ts` process tests require permission to bind a loopback socket.
 
+## Kubernetes adapters
+
+`createKubernetesAdapters()` in `src/kubernetes-adapters.ts` implements `TokenValidator` with `POST /apis/authentication.k8s.io/v1/tokenreviews` and `PodLookup` with `GET /api/v1/namespaces/{namespace}/pods/{podName}`. It uses the broker's mounted ServiceAccount token, explicit `token-broker` audience, 30-second timeouts and rejected redirects. Failed authentication (including `status.error`) returns an unauthenticated result; API/transport failures throw a sanitized `KubernetesDependencyError` for the endpoint's `503` response.
+
+The broker ServiceAccount needs cluster-wide `tokenreviews: create` in API group `authentication.k8s.io` and core `pods: get` in namespace `agents`. Configure `KUBERNETES_API_URL` and `KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH` to override the default in-cluster API and mounted token path. Set `NODE_EXTRA_CA_CERTS=/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` before starting Node to trust the cluster CA. See the [Kubernetes adapter guide](docs-site/src/content/docs/kubernetes-adapters.md) for configuration and error semantics. Server wiring and RBAC/deployment manifests remain separate work.
+
 ## GitHub issuer adapter
 
 `createGitHubTokenIssuer()` in `src/github-token-issuer.ts` reads `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY_PATH` at startup and returns a `TokenIssuer`. It loads the mounted RSA PEM once, converting PKCS#1 to PKCS#8 in memory. Every GitHub token request sends exactly one `repository_ids` entry and the explicit role `permissions`; installation tokens are never cached. GitHub's expiry is returned unchanged, and failures become sanitized `GitHubTokenIssuerError` instances. Startup errors identify missing/invalid configuration, unreadable files, invalid keys and non-RSA keys using fixed messages; issuance errors stay generic. Server wiring remains separate; `npm start` still exposes only `/healthz`.
@@ -98,6 +104,7 @@ See the [issuer guide](docs-site/src/content/docs/github-issuer.md) for configur
 
 | Date | Decision | Reasoning |
 |---|---|---|
+| 2026-11-13 | Implement Kubernetes adapters with native fetch, startup-configured CA trust and per-call reads of the broker token file | Keep the two-call MVP dependency-free and observe projected-token updates without caching credentials. As clarified in [#8](https://github.com/julie-ng/ai-native-sdlc-github-broker/issues/8#issuecomment-6853981045), nonempty TokenReview status.error means unauthenticated (401); transport/HTTP failures remain dependency errors (503). |
 | 2026-11-13 | Generate an API reference with Swagger 9, Astro and the default Starlight theme, per [#10](https://github.com/julie-ng/ai-native-sdlc-github-broker/issues/10) | Swagger 9 supports Fastify 5. Reuse the reference repo's pinned Astro/Starlight/OpenAPI renderer versions; omit its TypeDoc, Tailwind and component overrides. Keep generation offline and out of the broker runtime. |
 | 2026-11-13 | Use `@octokit/auth-app` for App JWT signing and Node fetch for each installation-token request | Avoid hand-written signing and bypass the library's installation-token cache; each issuance sends explicit repository and permission scope. PKCS#1 keys are normalized to PKCS#8 in memory at startup. |
 | 2026-11-13 | Adopt the platform-services ESLint formatting rules in `eslint.config.mjs` | Keep formatting consistent across services. Retain this Fastify service's TypeScript base; the source config's Nuxt wrapper and JSDoc rules for absent `server/utils` and `server/db` directories do not apply here. |

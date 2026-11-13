@@ -1,0 +1,9 @@
+# Allow only the build inputs; credentials and local environment never enter context.
+**
+!Dockerfile
+!package.json
+!package-lock.json
+!tsconfig.json
+!tsconfig.build.json
+!src/
+!src/**

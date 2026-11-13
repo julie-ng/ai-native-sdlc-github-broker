@@ -1,0 +1,16 @@
+# http://github-broker.github-broker.svc.cluster.local
+apiVersion: v1
+kind: Service
+metadata:
+  name: github-broker
+  namespace: github-broker
+  labels:
+    app.kubernetes.io/name: github-broker
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: github-broker
+  ports:
+    - name: http
+      port: 80
+      targetPort: http

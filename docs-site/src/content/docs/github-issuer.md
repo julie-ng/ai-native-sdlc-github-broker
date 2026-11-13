@@ -3,7 +3,7 @@ title: GitHub token issuer
 description: Startup configuration and scope of the GitHub App token issuer adapter.
 ---
 
-The GitHub issuer implements the broker's injected `TokenIssuer` function. It is available as `createGitHubTokenIssuer` in `src/github-token-issuer.ts`; server wiring remains separate work. `npm start` still serves only `/healthz`.
+The GitHub issuer implements the broker's injected `TokenIssuer` function. It is available as `createGitHubTokenIssuer` in `src/github-token-issuer.ts`; the server constructs it at startup from environment configuration and wires `/v1/github-token`.
 
 ## Startup configuration
 
@@ -37,4 +37,4 @@ Startup failures throw `GitHubTokenIssuerError` with a fixed reason: `GITHUB_APP
 
 `npm run lint`, `npm run typecheck` and `npm test` run on Node 24. Issuer tests generate a throwaway RSA key, mock all GitHub calls, verify JWT signatures and claims, assert exact request scopes, and exercise cache isolation and sanitized failures. They need no real key or network.
 
-A live GitHub check is a separate, human-run proof. Retries, token caching, metrics, key rotation and server/deployment wiring are outside this adapter's MVP scope.
+A live GitHub check is a separate, human-run proof. Retries, token caching, metrics and key rotation are outside the MVP scope. Server wiring and deployment instructions are in the repository README.

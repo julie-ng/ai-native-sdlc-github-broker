@@ -116,7 +116,7 @@ Invalid configuration exits before listening with fixed diagnostics that omit su
 
 Build locally with `docker build -t github-broker:local .`. Supply configuration using `docker run --env-file <local-env-file> --mount type=bind,src=<absolute-key-file>,dst=/mnt/app.pem,readonly -e GITHUB_APP_PRIVATE_KEY_PATH=/mnt/app.pem -p 3000:3000 github-broker:local`. The image uses the pinned platform-services Node 24 base, production dependencies and the non-root node user. The Docker context allows only build inputs.
 
-GitHub Actions verifies pull requests and branch pushes. After checks pass on a push to main, the production environment publishes `<acr>.azurecr.io/github-broker:latest` and `sha-<full-commit>`. Configure production environment variable `AZURE_ACR_NAME` and secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` for Azure OIDC, following platform-services. The first real publication happens after merge.
+GitHub Actions verifies pull requests and pushes to main. After checks pass on a push to main, the production environment publishes `<acr>.azurecr.io/github-broker:latest` and `sha-<full-commit>`. Configure production environment variable `AZURE_ACR_NAME` and secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` for Azure OIDC, following platform-services. The first real publication happens after merge.
 
 Infrastructure must provide namespace github-broker, ServiceAccount token-broker with workload identity, RBAC for TokenReview and pod lookup, ACR pull access, and SecretProviderClass github-broker-secrets exposing token-broker-gh-app-private-key. This change does not deploy infrastructure or run the live pod exchange test.
 

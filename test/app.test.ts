@@ -1,12 +1,16 @@
 import { spawn } from 'node:child_process'
 import { once } from 'node:events'
 import { expect, test } from 'vitest'
+import { startupEnvironment } from './startup-fixture.js'
 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   test(`server uses configured address and closes on ${signal}`, { timeout: 10000 }, async ({ onTestFinished }) => {
+    const fixture = startupEnvironment()
+    onTestFinished(fixture.cleanup)
     const server = spawn(process.execPath, ['dist/server.js'], {
       env: {
         ...process.env,
+        ...fixture.env,
         HOST: '127.0.0.1',
         PORT: '0',
       },
@@ -42,6 +46,9 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     const response = await fetch(`${address}/healthz`)
     await response.text()
     expect(response.status).toBe(200)
+
+    const exchange = await fetch(`${address}/v1/github-token`, { method: 'POST' })
+    expect(exchange.status).toBe(401)
 
     server.kill(signal)
     expect(await exited, output).toEqual([0, null])

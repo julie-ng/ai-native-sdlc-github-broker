@@ -1,21 +1,14 @@
-name: Lint and test
+name: CI
 
 on:
+  pull_request:
+    branches: [main]
   push:
     branches:
       - main
       - 'agent/**'
       - 'codex/**'
       - 'claude/**'
-    paths:
-      - '**/*.js'
-      - '**/*.jsx'
-      - '**/*.mjs'
-      - '**/*.cjs'
-      - '**/*.ts'
-      - '**/*.tsx'
-      - '**/*.mts'
-      - '**/*.cts'
 
 permissions:
   contents: read
@@ -34,4 +27,39 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run lint
+      - run: npm run typecheck
       - run: npm test
+
+  publish:
+    needs: lint-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AZURE_ACR_NAME: ${{ vars.AZURE_ACR_NAME }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - name: Build AMD64 image
+        run: docker build --platform linux/amd64 -t github-broker:check .
+      - name: Sign in to Azure with OIDC
+        uses: azure/login@v3
+        with:
+          client-id: ${{ secrets.AZURE_CLIENT_ID }}
+          tenant-id: ${{ secrets.AZURE_TENANT_ID }}
+          subscription-id: ${{ secrets.AZURE_SUBSCRIPTION_ID }}
+      - name: Push image
+        shell: bash
+        run: |
+          set -euo pipefail
+          az acr login --name "$AZURE_ACR_NAME"
+          image="$AZURE_ACR_NAME.azurecr.io/github-broker"
+          docker tag github-broker:check "$image:sha-$GITHUB_SHA"
+          docker tag github-broker:check "$image:latest"
+          docker push "$image:sha-$GITHUB_SHA"
+          docker push "$image:latest"

@@ -31,7 +31,7 @@ The example uses the planner's permissions. The endpoint policy supplies the app
 
 The adapter uses only Octokit's App JWT API, bypassing its installation-token cache entirely. Node's built-in `fetch` sends a fresh token request for every issuance, including repeated or concurrent assignments. It returns `{ token, expiresAt }`, copying `expires_at` from GitHub without calculating an expiry.
 
-Configuration, key, network and GitHub response failures throw `GitHubTokenIssuerError` with a fixed message and no upstream cause, body, headers or credentials. The issuer logs nothing. The existing endpoint maps issuer failures to `503 dependency_unavailable`; its public schema does not change.
+Startup failures throw `GitHubTokenIssuerError` with a fixed reason: `GITHUB_APP_ID missing or not numeric`, `GITHUB_APP_PRIVATE_KEY_PATH missing`, `Private key file unreadable`, `Private key is invalid`, or `Private key is not RSA`. No configuration values, file paths, key contents or original causes are included. Network and GitHub response failures keep the generic `GitHub token issuance unavailable` message without upstream body, headers, credentials or cause. The issuer logs nothing. The existing endpoint maps issuer failures to `503 dependency_unavailable`; its public schema does not change.
 
 ## Verification and limits
 

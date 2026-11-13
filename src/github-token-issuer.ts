@@ -4,8 +4,14 @@ import { createAppAuth } from '@octokit/auth-app'
 import type { TokenIssuer } from './token-exchange.types.js'
 
 export class GitHubTokenIssuerError extends Error {
-  constructor() {
-    super('GitHub token issuance unavailable')
+  constructor(message:
+    | 'GITHUB_APP_ID missing or not numeric'
+    | 'GITHUB_APP_PRIVATE_KEY_PATH missing'
+    | 'Private key file unreadable'
+    | 'Private key is invalid'
+    | 'Private key is not RSA'
+    | 'GitHub token issuance unavailable' = 'GitHub token issuance unavailable') {
+    super(message)
     this.name = 'GitHubTokenIssuerError'
   }
 }
@@ -17,13 +23,27 @@ export async function createGitHubTokenIssuer(
   try {
     const appId = env.GITHUB_APP_ID
     const keyPath = env.GITHUB_APP_PRIVATE_KEY_PATH
-    if (!appId || !/^\d+$/.test(appId) || !keyPath) {
-      throw new GitHubTokenIssuerError()
+    if (!appId || !/^\d+$/.test(appId)) {
+      throw new GitHubTokenIssuerError('GITHUB_APP_ID missing or not numeric')
+    }
+    if (!keyPath) {
+      throw new GitHubTokenIssuerError('GITHUB_APP_PRIVATE_KEY_PATH missing')
+    }
+    let pem: string
+    try {
+      pem = await readFile(keyPath, 'utf8')
+    } catch {
+      throw new GitHubTokenIssuerError('Private key file unreadable')
     }
     // Node accepts GitHub's PKCS#1 PEM; export PKCS#8 for the auth library.
-    const key = createPrivateKey(await readFile(keyPath, 'utf8'))
+    let key: ReturnType<typeof createPrivateKey>
+    try {
+      key = createPrivateKey(pem)
+    } catch {
+      throw new GitHubTokenIssuerError('Private key is invalid')
+    }
     if (key.asymmetricKeyType !== 'rsa') {
-      throw new GitHubTokenIssuerError()
+      throw new GitHubTokenIssuerError('Private key is not RSA')
     }
     const auth = createAppAuth({
       appId,
@@ -87,7 +107,11 @@ export async function createGitHubTokenIssuer(
         throw new GitHubTokenIssuerError()
       }
     }
-  } catch {
+  } catch (error) {
+    // Preserve only our fixed startup reasons, never raw filesystem/crypto errors.
+    if (error instanceof GitHubTokenIssuerError) {
+      throw error
+    }
     throw new GitHubTokenIssuerError()
   }
 }

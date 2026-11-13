@@ -204,22 +204,39 @@ test.each([
 })
 
 test.each([
-  'missing-app',
-  'missing-path',
-  'unreadable-key',
-  'invalid-key',
-])(
-  'sanitizes startup errors: %s', async (failure) => {
-    if (failure === 'invalid-key') {
-      await writeFile(keyPath, 'private-secret-invalid-key')
-    }
-    await expect(createGitHubTokenIssuer({
-      GITHUB_APP_ID: failure === 'missing-app' ? undefined : '12345',
-      GITHUB_APP_PRIVATE_KEY_PATH: failure === 'missing-path' ? undefined : failure === 'unreadable-key' ? join(directory, 'absent') : keyPath,
-    })).rejects.toMatchObject({
-      name: 'GitHubTokenIssuerError',
-      message: 'GitHub token issuance unavailable',
-    })
-    expect(fetchMock).not.toHaveBeenCalled()
-  },
-)
+  ['missing-app', 'GITHUB_APP_ID missing or not numeric'],
+  ['invalid-app', 'GITHUB_APP_ID missing or not numeric'],
+  ['missing-path', 'GITHUB_APP_PRIVATE_KEY_PATH missing'],
+  ['unreadable-key', 'Private key file unreadable'],
+  ['invalid-key', 'Private key is invalid'],
+  ['non-rsa-key', 'Private key is not RSA'],
+])('reports safe startup reason: %s', async (failure, message) => {
+  const secret = 'private-secret-invalid-key'
+  const logs = [
+    vi.spyOn(console, 'log'),
+    vi.spyOn(console, 'warn'),
+    vi.spyOn(console, 'error'),
+  ]
+  if (failure === 'invalid-key') {
+    await writeFile(keyPath, secret)
+  }
+  if (failure === 'non-rsa-key') {
+    const { privateKey } = generateKeyPairSync('ec', { namedCurve: 'prime256v1' })
+    await writeFile(keyPath, privateKey.export({
+      type: 'pkcs8',
+      format: 'pem',
+    }))
+  }
+  const error = await createGitHubTokenIssuer({
+    GITHUB_APP_ID: failure === 'missing-app' ? undefined : failure === 'invalid-app' ? secret : '12345',
+    GITHUB_APP_PRIVATE_KEY_PATH: failure === 'missing-path' ? undefined : failure === 'unreadable-key' ? join(directory, secret) : keyPath,
+  }).catch(error => error)
+  expect(error).toBeInstanceOf(GitHubTokenIssuerError)
+  expect(error.message).toBe(message)
+  expect(error.cause).toBeUndefined()
+  expect(String(error.stack)).not.toContain(secret)
+  expect(String(error.stack)).not.toContain(pem)
+  expect(String(error.stack)).not.toContain(keyPath)
+  logs.forEach(log => expect(log).not.toHaveBeenCalled())
+  expect(fetchMock).not.toHaveBeenCalled()
+})

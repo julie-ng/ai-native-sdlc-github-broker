@@ -14,13 +14,16 @@
     "start": "node dist/server.js",
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
-    "test": "npm run build && vitest run"
+    "test": "npm run build && vitest run",
+    "docs:build": "node --import tsx scripts/generate-openapi.ts && npm run build --prefix docs-site",
+    "docs:dev": "node --import tsx scripts/generate-openapi.ts && npm run dev --prefix docs-site"
   },
   "dependencies": {
     "fastify": "^5.12.7"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@fastify/swagger": "^9.9.3",
     "@stylistic/eslint-plugin": "^5.10.0",
     "@types/node": "^24.19.2",
     "eslint": "^10.13.0",

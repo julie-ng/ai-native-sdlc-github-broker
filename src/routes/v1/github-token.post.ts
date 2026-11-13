@@ -13,8 +13,78 @@ const permissionsByRole = {
   },
 } satisfies Record<string, TokenPermissions>
 
+function errorResponse(code: string, description: string) {
+  return {
+    description,
+    type: 'object',
+    required: ['error'],
+    properties: {
+      error: {
+        type: 'object',
+        required: ['code'],
+        properties: {
+          code: {
+            type: 'string',
+            enum: [code],
+          },
+        },
+      },
+    },
+    example: { error: { code } },
+  }
+}
+
 const githubTokenRoute: FastifyPluginAsync<TokenExchangeOptions> = async (app, options) => {
   app.post('/v1/github-token', {
+    schema: {
+      operationId: 'exchangeGithubToken',
+      summary: 'Exchange a pod credential for a scoped GitHub token',
+      description: 'Authenticate using Authorization: Bearer <projected Kubernetes token> with audience token-broker. '
+        + 'The reviewed pod UID and ServiceAccount must match the looked-up pod in namespace agents. '
+        + 'Its ai-native-sdlc/repository annotation selects an allowlisted owner/repo. '
+        + 'Planner permissions are contents: read and issues: read; coder permissions are contents: write, '
+        + 'pull_requests: write and issues: read. No caller-supplied scope or query string is accepted. '
+        + 'Omit the body and JSON content type, or send {} as application/json. An empty body with a JSON content type returns 400. '
+        + 'A successful response includes Cache-Control: no-store; expiresAt comes directly from the issuer.',
+      tags: ['Tokens'],
+      security: [{ podBearer: [] }],
+      body: {
+        description: 'Optional empty JSON object. Repository, role, installation and permissions are selected server-side.',
+        type: 'object',
+        additionalProperties: false,
+        properties: {},
+        example: {},
+      },
+      response: {
+        200: {
+          description: 'Scoped GitHub installation token. Cache-Control: no-store.',
+          type: 'object',
+          required: ['token', 'expiresAt'],
+          properties: {
+            token: {
+              type: 'string',
+              description: 'Short-lived GitHub installation token.',
+            },
+            expiresAt: {
+              type: 'string',
+              format: 'date-time',
+              description: 'Issuer-provided ISO 8601 expiry.',
+            },
+          },
+          example: {
+            token: 'ghs_example',
+            expiresAt: '2026-11-13T12:00:00Z',
+          },
+        },
+        400: errorResponse('invalid_request', 'Query string, extra body fields, malformed input or unsupported content type.'),
+        401: errorResponse('invalid_credential', 'Missing or malformed bearer token, failed review or wrong audience.'),
+        403: errorResponse('assignment_denied', 'Unknown namespace or ServiceAccount, pod UID/ServiceAccount mismatch, or missing/malformed/unapproved repository annotation.'),
+        503: errorResponse('dependency_unavailable', 'Token review, pod lookup or issuer failed. No fallback credential or upstream details are returned.'),
+      },
+    },
+    // preValidation remains authoritative: AJV would reject an absent optional body.
+    // It also must not strip or coerce fields before the existing rejection checks.
+    validatorCompiler: () => () => true,
     // Scope parser/validation failures to this route; never expose parser input or errors.
     errorHandler(error, _request, reply) {
       const invalidRequest = error.statusCode !== undefined && error.statusCode < 500

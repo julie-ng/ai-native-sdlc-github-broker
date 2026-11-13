@@ -6,3 +6,5 @@ dist/
 !.env.example
 *.log
 .DS_Store
+docs-site/.astro/
+docs-site/openapi.json

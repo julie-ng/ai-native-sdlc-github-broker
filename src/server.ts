@@ -12,8 +12,7 @@ const app = buildApp({
 async function shutdown() {
   try {
     await app.close()
-  }
-  catch (error) {
+  } catch (error) {
     app.log.error(error)
     process.exitCode = 1
   }
@@ -27,8 +26,7 @@ try {
     host: HOST,
     port: PORT,
   })
-}
-catch (error) {
+} catch (error) {
   app.log.error(error)
   process.exitCode = 1
 }

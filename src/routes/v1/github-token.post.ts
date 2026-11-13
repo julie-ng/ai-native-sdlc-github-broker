@@ -2,8 +2,15 @@ import type { FastifyPluginAsync } from 'fastify'
 import type { TokenExchangeOptions, TokenPermissions } from '../../token-exchange.types.js'
 
 const permissionsByRole = {
-  planner: { contents: 'read', issues: 'read' },
-  coder: { contents: 'write', pull_requests: 'write', issues: 'read' },
+  planner: {
+    contents: 'read',
+    issues: 'read',
+  },
+  coder: {
+    contents: 'write',
+    pull_requests: 'write',
+    issues: 'read',
+  },
 } satisfies Record<string, TokenPermissions>
 
 const githubTokenRoute: FastifyPluginAsync<TokenExchangeOptions> = async (app, options) => {
@@ -43,7 +50,10 @@ const githubTokenRoute: FastifyPluginAsync<TokenExchangeOptions> = async (app, o
         return reply.code(403).send({ error: { code: 'assignment_denied' } })
       }
 
-      const pod = await options.podLookup({ namespace: identity.namespace, podName: identity.podName })
+      const pod = await options.podLookup({
+        namespace: identity.namespace,
+        podName: identity.podName,
+      })
       if (pod.uid !== identity.podUid || pod.serviceAccount !== role) {
         return reply.code(403).send({ error: { code: 'assignment_denied' } })
       }
@@ -60,9 +70,11 @@ const githubTokenRoute: FastifyPluginAsync<TokenExchangeOptions> = async (app, o
         installationId: assignment.installationId,
         permissions: { ...permissionsByRole[role] },
       })
-      return reply.header('Cache-Control', 'no-store').send({ token: issued.token, expiresAt: issued.expiresAt })
-    }
-    catch {
+      return reply.header('Cache-Control', 'no-store').send({
+        token: issued.token,
+        expiresAt: issued.expiresAt,
+      })
+    } catch {
       // Upstream errors can contain credentials; do not pass them to the logger or reply.
       return reply.code(503).send({ error: { code: 'dependency_unavailable' } })
     }

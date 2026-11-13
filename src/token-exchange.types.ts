@@ -1,5 +1,8 @@
 export type TokenReviewResult =
-  | { authenticated: false, audienceMatches: boolean }
+  | {
+    authenticated: false
+    audienceMatches: boolean
+  }
   | {
     authenticated: true
     audienceMatches: boolean
@@ -14,7 +17,10 @@ export interface TokenValidator {
 }
 
 export interface PodLookup {
-  (pod: { namespace: string, podName: string }): Promise<{
+  (pod: {
+    namespace: string
+    podName: string
+  }): Promise<{
     uid: string
     serviceAccount: string
     annotations: Record<string, string>

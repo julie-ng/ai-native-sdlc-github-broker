@@ -75,6 +75,7 @@ Run `npm run lint`, `npm run typecheck` and `npm test` on Node 24. `test/routes/
 
 | Date | Decision | Reasoning |
 |---|---|---|
+| 2026-11-13 | Adopt the platform-services ESLint formatting rules in `eslint.config.mjs` | Keep formatting consistent across services. Retain this Fastify service's TypeScript base; the source config's Nuxt wrapper and JSDoc rules for absent `server/utils` and `server/db` directories do not apply here. |
 | 2026-11-13 | Implement the issue #6 MVP with injected functions and a server-side repository allowlist | Keep policy testable offline; real adapters and server wiring belong to separate issues. |
 | 2026-11-13 | Use the planner/coder permissions above and omit run/step/attempt labels | Planner reads and clones; coder opens its own PR. Workflow traceability waits for the workflow service. Approved in the implementation plan. |
 | 2026-11-13 | Explicitly register route plugins under `src/routes/<version>/<resource>.<method>.ts` | Make URL and method visible in filenames while retaining native Fastify registration without autoload. |

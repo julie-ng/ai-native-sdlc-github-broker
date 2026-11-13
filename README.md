@@ -24,6 +24,21 @@ The server listens on `127.0.0.1:3000`. Set `HOST` and `PORT` to override; a con
 - `npm test`: build the service, then run mocked endpoint tests and process tests for address configuration and SIGINT/SIGTERM shutdown.
 - `GET /healthz`: process liveness only; does not check Kubernetes, GitHub or Key Vault readiness.
 
+## API reference site
+
+Published URL: <https://julie-ng.github.io/ai-native-sdlc-github-broker/>. Publication requires the docs workflow to deploy after merge; live availability is not yet verified. The human developer must first set repository **Settings → Pages → Source: GitHub Actions**.
+
+```sh
+npm ci
+npm ci --prefix docs-site
+npm run docs:build
+npm run docs:dev
+```
+
+`docs:build` generates the ignored `docs-site/openapi.json` from the Fastify route schemas with stub dependencies, then builds the default Starlight site into `docs-site/dist/`. `docs:dev` also regenerates the spec before starting Astro at <http://localhost:4000/ai-native-sdlc-github-broker/>; restart it after route-schema changes. No network, cluster, GitHub key or token is needed to generate the spec. Swagger is a development dependency used only by the generation script; the running broker exposes no docs or OpenAPI route.
+
+Route schemas must have `summary` and `description`; keep their tags, request/response schemas and examples aligned with behavior. Before a PR, run `npm run lint`, `npm run typecheck`, `npm test` and `npm run docs:build`. The docs workflow builds on pull requests without deploying, and deploys on pushes to `main` or manual dispatch on `main`. See [docs-site/README.md](docs-site/README.md) for the generation details.
+
 `src/app.ts` constructs the application without opening a socket. `src/server.ts` defines `HOST`/`PORT` near the top, configures logging, starts the listener and handles shutdown. Production logging uses Fastify's Pino integration with authorization-header redaction.
 
 Local imports use `.js` extensions so compiled ES modules run directly in Node. The build emits service code only; Vitest handles the TypeScript test files. No credentials are needed to run the bootstrap or tests. Container packaging and deployment belong to later broker work.
@@ -77,6 +92,7 @@ Run `npm run lint`, `npm run typecheck` and `npm test` on Node 24. `test/routes/
 
 | Date | Decision | Reasoning |
 |---|---|---|
+| 2026-11-13 | Generate an API reference with Swagger 9, Astro and the default Starlight theme, per [#10](https://github.com/julie-ng/ai-native-sdlc-github-broker/issues/10) | Swagger 9 supports Fastify 5. Reuse the reference repo's pinned Astro/Starlight/OpenAPI renderer versions; omit its TypeDoc, Tailwind and component overrides. Keep generation offline and out of the broker runtime. |
 | 2026-11-13 | Adopt the platform-services ESLint formatting rules in `eslint.config.mjs` | Keep formatting consistent across services. Retain this Fastify service's TypeScript base; the source config's Nuxt wrapper and JSDoc rules for absent `server/utils` and `server/db` directories do not apply here. |
 | 2026-11-13 | Implement the issue #6 MVP with injected functions and a server-side repository allowlist | Keep policy testable offline; real adapters and server wiring belong to separate issues. |
 | 2026-11-13 | Implement the proposed permissions: planner `contents: read`, `issues: read`; coder `contents: write`, `pull_requests: write`, `issues: read`; no run, step or attempt labels | Planner reads and clones; coder opens its own PR. Workflow traceability waits for the workflow service. Proposed in [#6](https://github.com/julie-ng/ai-native-sdlc-github-broker/issues/6) and discussed with the human developer at a high level on 2026-11-13; not reviewed in detail. Open for confirmation in the [PR #9 review](https://github.com/julie-ng/ai-native-sdlc-github-broker/pull/9). |

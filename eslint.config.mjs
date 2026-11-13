@@ -7,7 +7,14 @@ import tseslint from 'typescript-eslint'
 // Shared formatting rules: https://github.com/julie-ng/ai-native-sdlc-platform-services/blob/main/eslint.config.mjs
 // Use this service's TypeScript base instead of Nuxt's generated config.
 export default defineConfig([
-  { ignores: ['dist/**', 'coverage/**'] },
+  {
+    ignores: [
+      'dist/**',
+      'coverage/**',
+      'docs-site/dist/**',
+      'docs-site/.astro/**',
+    ],
+  },
   js.configs.recommended,
   tseslint.configs.recommended,
   {

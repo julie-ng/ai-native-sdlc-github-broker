@@ -39,12 +39,12 @@ spec:
               value: "0.0.0.0"
             - name: NODE_EXTRA_CA_CERTS
               value: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
-            - name: GITHUB_APP_ID
-              value: "${GITHUB_APP_ID}"
-            - name: GITHUB_APP_PRIVATE_KEY_PATH
+            - name: GH_APP_ID
+              value: "${GH_APP_ID}"
+            - name: GH_APP_PRIVATE_KEY_PATH
               value: /mnt/secrets/token-broker-gh-app-private-key
-            - name: GITHUB_REPOSITORIES
-              value: '${GITHUB_REPOSITORIES}'
+            - name: GH_REPOSITORIES
+              value: '${GH_REPOSITORIES}'
           volumeMounts:
             - name: secrets
               mountPath: /mnt/secrets

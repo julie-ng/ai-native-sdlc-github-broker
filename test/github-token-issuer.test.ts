@@ -47,8 +47,8 @@ afterEach(async () => {
 
 function issuer() {
   return createGitHubTokenIssuer({
-    GITHUB_APP_ID: '12345',
-    GITHUB_APP_PRIVATE_KEY_PATH: keyPath,
+    GH_APP_ID: '12345',
+    GH_APP_PRIVATE_KEY_PATH: keyPath,
   })
 }
 
@@ -204,9 +204,9 @@ test.each([
 })
 
 test.each([
-  ['missing-app', 'GITHUB_APP_ID missing or not numeric'],
-  ['invalid-app', 'GITHUB_APP_ID missing or not numeric'],
-  ['missing-path', 'GITHUB_APP_PRIVATE_KEY_PATH missing'],
+  ['missing-app', 'GH_APP_ID missing or not numeric'],
+  ['invalid-app', 'GH_APP_ID missing or not numeric'],
+  ['missing-path', 'GH_APP_PRIVATE_KEY_PATH missing'],
   ['unreadable-key', 'Private key file unreadable'],
   ['invalid-key', 'Private key is invalid'],
   ['non-rsa-key', 'Private key is not RSA'],
@@ -228,8 +228,8 @@ test.each([
     }))
   }
   const error = await createGitHubTokenIssuer({
-    GITHUB_APP_ID: failure === 'missing-app' ? undefined : failure === 'invalid-app' ? secret : '12345',
-    GITHUB_APP_PRIVATE_KEY_PATH: failure === 'missing-path' ? undefined : failure === 'unreadable-key' ? join(directory, secret) : keyPath,
+    GH_APP_ID: failure === 'missing-app' ? undefined : failure === 'invalid-app' ? secret : '12345',
+    GH_APP_PRIVATE_KEY_PATH: failure === 'missing-path' ? undefined : failure === 'unreadable-key' ? join(directory, secret) : keyPath,
   }).catch(error => error)
   expect(error).toBeInstanceOf(GitHubTokenIssuerError)
   expect(error.message).toBe(message)

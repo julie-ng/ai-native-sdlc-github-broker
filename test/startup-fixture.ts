@@ -13,9 +13,9 @@ export function startupEnvironment() {
   }))
   return {
     env: {
-      GITHUB_APP_ID: '123',
-      GITHUB_APP_PRIVATE_KEY_PATH: keyPath,
-      GITHUB_REPOSITORIES: JSON.stringify({
+      GH_APP_ID: '123',
+      GH_APP_PRIVATE_KEY_PATH: keyPath,
+      GH_REPOSITORIES: JSON.stringify({
         'example/repo': {
           repositoryId: 1,
           installationId: 2,

@@ -5,8 +5,8 @@ import type { TokenIssuer } from './token-exchange.types.js'
 
 export class GitHubTokenIssuerError extends Error {
   constructor(message:
-    | 'GITHUB_APP_ID missing or not numeric'
-    | 'GITHUB_APP_PRIVATE_KEY_PATH missing'
+    | 'GH_APP_ID missing or not numeric'
+    | 'GH_APP_PRIVATE_KEY_PATH missing'
     | 'Private key file unreadable'
     | 'Private key is invalid'
     | 'Private key is not RSA'
@@ -18,16 +18,16 @@ export class GitHubTokenIssuerError extends Error {
 
 // Call once during startup. Server wiring is deliberately separate from this adapter.
 export async function createGitHubTokenIssuer(
-  env: Partial<Pick<NodeJS.ProcessEnv, 'GITHUB_APP_ID' | 'GITHUB_APP_PRIVATE_KEY_PATH'>> = process.env,
+  env: Partial<Pick<NodeJS.ProcessEnv, 'GH_APP_ID' | 'GH_APP_PRIVATE_KEY_PATH'>> = process.env,
 ): Promise<TokenIssuer> {
   try {
-    const appId = env.GITHUB_APP_ID
-    const keyPath = env.GITHUB_APP_PRIVATE_KEY_PATH
+    const appId = env.GH_APP_ID
+    const keyPath = env.GH_APP_PRIVATE_KEY_PATH
     if (!appId || !/^\d+$/.test(appId)) {
-      throw new GitHubTokenIssuerError('GITHUB_APP_ID missing or not numeric')
+      throw new GitHubTokenIssuerError('GH_APP_ID missing or not numeric')
     }
     if (!keyPath) {
-      throw new GitHubTokenIssuerError('GITHUB_APP_PRIVATE_KEY_PATH missing')
+      throw new GitHubTokenIssuerError('GH_APP_PRIVATE_KEY_PATH missing')
     }
     let pem: string
     try {

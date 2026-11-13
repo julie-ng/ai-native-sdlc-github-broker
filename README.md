@@ -96,7 +96,7 @@ The broker ServiceAccount needs cluster-wide `tokenreviews: create` in API group
 
 ## GitHub issuer adapter
 
-`createGitHubTokenIssuer()` in `src/github-token-issuer.ts` reads `GITHUB_APP_ID` and `GITHUB_APP_PRIVATE_KEY_PATH` at startup and returns a `TokenIssuer`. It loads the mounted RSA PEM once, converting PKCS#1 to PKCS#8 in memory. Every GitHub token request sends exactly one `repository_ids` entry and the explicit role `permissions`; installation tokens are never cached. GitHub's expiry is returned unchanged, and failures become sanitized `GitHubTokenIssuerError` instances. Startup errors identify missing/invalid configuration, unreadable files, invalid keys and non-RSA keys using fixed messages; issuance errors stay generic. The server constructs the issuer at startup; no upstream request is made until token issuance.
+`createGitHubTokenIssuer()` in `src/github-token-issuer.ts` reads `GH_APP_ID` and `GH_APP_PRIVATE_KEY_PATH` at startup and returns a `TokenIssuer`. It loads the mounted RSA PEM once, converting PKCS#1 to PKCS#8 in memory. Every GitHub token request sends exactly one `repository_ids` entry and the explicit role `permissions`; installation tokens are never cached. GitHub's expiry is returned unchanged, and failures become sanitized `GitHubTokenIssuerError` instances. Startup errors identify missing/invalid configuration, unreadable files, invalid keys and non-RSA keys using fixed messages; issuance errors stay generic. The server constructs the issuer at startup; no upstream request is made until token issuance.
 
 See the [issuer guide](docs-site/src/content/docs/github-issuer.md) for configuration, request details and offline verification. The docs site includes the guide under “GitHub token issuer”.
 
@@ -104,9 +104,9 @@ See the [issuer guide](docs-site/src/content/docs/github-issuer.md) for configur
 
 | Variable | Requirement / default |
 |---|---|
-| GITHUB_APP_ID | Required numeric App ID |
-| GITHUB_APP_PRIVATE_KEY_PATH | Required readable RSA PEM file path |
-| GITHUB_REPOSITORIES | Required nonempty JSON object, e.g. `{"example/repo":{"repositoryId":123,"installationId":456}}`; IDs must be positive safe integers |
+| GH_APP_ID | Required numeric App ID |
+| GH_APP_PRIVATE_KEY_PATH | Required readable RSA PEM file path |
+| GH_REPOSITORIES | Required nonempty JSON object, e.g. `{"example/repo":{"repositoryId":123,"installationId":456}}`; IDs must be positive safe integers |
 | KUBERNETES_API_URL | HTTPS origin; defaults to `https://kubernetes.default.svc` |
 | KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH | Defaults to `/var/run/secrets/kubernetes.io/serviceaccount/token` |
 | NODE_EXTRA_CA_CERTS | Set before Node starts; in cluster, `/var/run/secrets/kubernetes.io/serviceaccount/ca.crt` |
@@ -114,7 +114,7 @@ See the [issuer guide](docs-site/src/content/docs/github-issuer.md) for configur
 
 Invalid configuration exits before listening with fixed diagnostics that omit supplied values. Startup reads the App key but does not contact GitHub or Kubernetes. Kubernetes token reads happen per request; the default ServiceAccount token automount must remain enabled. Node loads CA trust at process startup.
 
-Build locally with `docker build -t github-broker:local .`. Supply configuration using `docker run --env-file <local-env-file> --mount type=bind,src=<absolute-key-file>,dst=/mnt/app.pem,readonly -e GITHUB_APP_PRIVATE_KEY_PATH=/mnt/app.pem -p 3000:3000 github-broker:local`. The image uses the pinned platform-services Node 24 base, production dependencies and the non-root node user. The Docker context allows only build inputs.
+Build locally with `docker build -t github-broker:local .`. Supply configuration using `docker run --env-file <local-env-file> --mount type=bind,src=<absolute-key-file>,dst=/mnt/app.pem,readonly -e GH_APP_PRIVATE_KEY_PATH=/mnt/app.pem -p 3000:3000 github-broker:local`. The image uses the pinned platform-services Node 24 base, production dependencies and the non-root node user. The Docker context allows only build inputs.
 
 GitHub Actions verifies pull requests and pushes to main. After checks pass on a push to main, the production environment publishes `<acr>.azurecr.io/github-broker:latest` and `sha-<full-commit>`. Configure production environment variable `AZURE_ACR_NAME` and secrets `AZURE_CLIENT_ID`, `AZURE_TENANT_ID` and `AZURE_SUBSCRIPTION_ID` for Azure OIDC, following platform-services. The first real publication happens after merge.
 
@@ -126,7 +126,7 @@ cp manifests/.env.example manifests/.env
 set -a
 . manifests/.env
 set +a
-envsubst '$AZURE_ACR_NAME $GITHUB_APP_ID $GITHUB_REPOSITORIES' < manifests/deployment.yaml | kubectl apply -f -
+envsubst '$AZURE_ACR_NAME $GH_APP_ID $GH_REPOSITORIES' < manifests/deployment.yaml | kubectl apply -f -
 kubectl apply -f manifests/service.yaml
 kubectl -n github-broker rollout status deployment/github-broker
 kubectl -n github-broker get pods
@@ -139,6 +139,7 @@ The in-cluster URL is http://github-broker.github-broker.svc.cluster.local. The 
 
 | Date | Decision | Reasoning |
 |---|---|---|
+| 2026-11-13 | Use GH_ for broker GitHub configuration variables | Align deployment configuration with the requested GitHub Actions variable names. |
 | 2026-11-13 | Wire startup adapters and ship a container, CI publication and plain envsubst manifests (#14) | Preserve Kubernetes defaults, reject empty allowlists, and fail before listening with fixed diagnostics. Infrastructure and human-run live tests remain separate. |
 | 2026-11-13 | Implement Kubernetes adapters with native fetch, startup-configured CA trust and per-call reads of the broker token file | Keep the two-call MVP dependency-free and observe projected-token updates without caching credentials. As clarified in [#8](https://github.com/julie-ng/ai-native-sdlc-github-broker/issues/8#issuecomment-6853981045), nonempty TokenReview status.error means unauthenticated (401); transport/HTTP failures remain dependency errors (503). |
 | 2026-11-13 | Generate an API reference with Swagger 9, Astro and the default Starlight theme, per [#10](https://github.com/julie-ng/ai-native-sdlc-github-broker/issues/10) | Swagger 9 supports Fastify 5. Reuse the reference repo's pinned Astro/Starlight/OpenAPI renderer versions; omit its TypeDoc, Tailwind and component overrides. Keep generation offline and out of the broker runtime. |

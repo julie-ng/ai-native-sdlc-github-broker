@@ -11,7 +11,7 @@ function configurationError(message: string): never {
 
 let repositories: Record<string, RepositoryAssignment>
 try {
-  const value: unknown = JSON.parse(process.env.GITHUB_REPOSITORIES ?? '')
+  const value: unknown = JSON.parse(process.env.GH_REPOSITORIES ?? '')
   if (typeof value !== 'object' || value === null || Array.isArray(value)
     || Object.keys(value).length === 0
     || !Object.entries(value).every(([name, assignment]) => {
@@ -28,7 +28,7 @@ try {
   }
   repositories = value as Record<string, RepositoryAssignment>
 } catch {
-  configurationError('GITHUB_REPOSITORIES must be a nonempty owner/repo mapping with positive integer repositoryId and installationId')
+  configurationError('GH_REPOSITORIES must be a nonempty owner/repo mapping with positive integer repositoryId and installationId')
 }
 
 let kubernetes: ReturnType<typeof createKubernetesAdapters>

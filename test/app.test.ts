@@ -5,8 +5,16 @@ import { expect, test } from 'vitest'
 for (const signal of ['SIGINT', 'SIGTERM'] as const) {
   test(`server uses configured address and closes on ${signal}`, { timeout: 10000 }, async ({ onTestFinished }) => {
     const server = spawn(process.execPath, ['dist/server.js'], {
-      env: { ...process.env, HOST: '127.0.0.1', PORT: '0' },
-      stdio: ['ignore', 'pipe', 'pipe'],
+      env: {
+        ...process.env,
+        HOST: '127.0.0.1',
+        PORT: '0',
+      },
+      stdio: [
+        'ignore',
+        'pipe',
+        'pipe',
+      ],
     })
     const exited = once(server, 'exit')
     onTestFinished(() => {
@@ -18,7 +26,9 @@ for (const signal of ['SIGINT', 'SIGTERM'] as const) {
     let output = ''
     const address = await new Promise<string>((resolve, reject) => {
       server.on('error', reject)
-      server.stderr.on('data', chunk => { output += chunk })
+      server.stderr.on('data', chunk => {
+        output += chunk
+      })
       server.once('exit', () => reject(new Error(`Server exited before listening: ${output}`)))
       server.stdout.on('data', (chunk) => {
         output += chunk

@@ -102,3 +102,135 @@ for (const review of [{ authenticated: false as const, audienceMatches: false },
     expect(f.tokenIssuer).not.toHaveBeenCalled()
   })
 }
+
+for (const claim of [
+  { serviceAccount: 'reviewer' },
+  { serviceAccount: 'toString' },
+  { namespace: 'default' },
+]) {
+  test(`denies unauthorized claims: ${JSON.stringify(claim)}`, async ({ onTestFinished }) => {
+    const f = fixture()
+    onTestFinished(() => f.app.close())
+    f.tokenValidator.mockResolvedValue({ ...identity, ...claim })
+    const response = await f.app.inject({ method: 'POST', url: '/v1/github-token', headers })
+    expect(response.statusCode).toBe(403)
+    expect(response.json()).toEqual({ error: { code: 'assignment_denied' } })
+    expect(f.podLookup).not.toHaveBeenCalled()
+    expect(f.tokenIssuer).not.toHaveBeenCalled()
+  })
+}
+
+for (const mismatch of [{ uid: 'replacement-pod' }, { serviceAccount: 'coder' }]) {
+  test(`denies pod mismatch: ${JSON.stringify(mismatch)}`, async ({ onTestFinished }) => {
+    const f = fixture()
+    onTestFinished(() => f.app.close())
+    f.podLookup.mockResolvedValue({ ...pod, ...mismatch })
+    const response = await f.app.inject({ method: 'POST', url: '/v1/github-token', headers })
+    expect(response.statusCode).toBe(403)
+    expect(response.json()).toEqual({ error: { code: 'assignment_denied' } })
+    expect(f.tokenIssuer).not.toHaveBeenCalled()
+  })
+}
+
+for (const value of [undefined, '', 'repo', '/repo', 'owner/', 'a/b/c', 'owner/repo name', ' owner/repo', 'owner/other']) {
+  test(`denies missing, malformed or unapproved repository: ${JSON.stringify(value)}`, async ({ onTestFinished }) => {
+    const f = fixture()
+    onTestFinished(() => f.app.close())
+    f.podLookup.mockResolvedValue({ ...pod, annotations: value === undefined ? {} : { [annotation]: value } })
+    const response = await f.app.inject({ method: 'POST', url: '/v1/github-token', headers })
+    expect(response.statusCode).toBe(403)
+    expect(response.json()).toEqual({ error: { code: 'assignment_denied' } })
+    expect(f.tokenIssuer).not.toHaveBeenCalled()
+  })
+}
+
+test('selects the annotated repository rather than the first allowlist entry', async ({ onTestFinished }) => {
+  const f = fixture()
+  onTestFinished(() => f.app.close())
+  f.podLookup.mockResolvedValue({ ...pod, annotations: { [annotation]: 'other/repo' } })
+  const response = await f.app.inject({ method: 'POST', url: '/v1/github-token', headers })
+  expect(response.statusCode).toBe(200)
+  expect(f.tokenIssuer).toHaveBeenCalledExactlyOnceWith({
+    repositoryId: 789, installationId: 987, permissions: { contents: 'read', issues: 'read' },
+  })
+})
+
+for (const payload of [
+  { repository: repository }, { role: 'coder' }, { permissions: { contents: 'write' } },
+  { installation: 456 }, { installationId: 456 }, { repositoryId: 123 }, { arbitrary: true },
+  [], 'null', 'true', '123', '"text"', '{"repository":',
+]) {
+  test(`rejects invalid body: ${JSON.stringify(payload)}`, async ({ onTestFinished }) => {
+    const f = fixture()
+    onTestFinished(() => f.app.close())
+    const response = await f.app.inject({
+      method: 'POST', url: '/v1/github-token',
+      headers: { ...headers, 'content-type': 'application/json' }, payload,
+    })
+    expect(response.statusCode).toBe(400)
+    expect(response.json()).toEqual({ error: { code: 'invalid_request' } })
+    expect(f.tokenValidator).not.toHaveBeenCalled()
+    expect(f.podLookup).not.toHaveBeenCalled()
+    expect(f.tokenIssuer).not.toHaveBeenCalled()
+    expect(f.logs()).not.toContain('projected-secret')
+  })
+}
+
+for (const query of ['?repository=other/repo', '?role=coder', '?arbitrary']) {
+  test(`rejects any query string: ${query}`, async ({ onTestFinished }) => {
+    const f = fixture()
+    onTestFinished(() => f.app.close())
+    const response = await f.app.inject({ method: 'POST', url: `/v1/github-token${query}`, headers })
+    expect(response.statusCode).toBe(400)
+    expect(response.json()).toEqual({ error: { code: 'invalid_request' } })
+    expect(f.tokenValidator).not.toHaveBeenCalled()
+    expect(f.podLookup).not.toHaveBeenCalled()
+    expect(f.tokenIssuer).not.toHaveBeenCalled()
+  })
+}
+
+test('rejects a bare query delimiter on the raw request', async ({ onTestFinished }) => {
+  const f = fixture()
+  onTestFinished(() => f.app.close())
+  // inject() normalizes a trailing '?' away; preserve the HTTP request target here.
+  f.app.addHook('onRequest', (request, _reply, done) => {
+    request.raw.url += '?'
+    done()
+  })
+  const response = await f.app.inject({ method: 'POST', url: '/v1/github-token', headers })
+  expect(response.statusCode).toBe(400)
+  expect(response.json()).toEqual({ error: { code: 'invalid_request' } })
+  expect(f.tokenIssuer).not.toHaveBeenCalled()
+})
+
+test('rejects unsupported content types with the contract error', async ({ onTestFinished }) => {
+  const f = fixture()
+  onTestFinished(() => f.app.close())
+  const response = await f.app.inject({
+    method: 'POST', url: '/v1/github-token', headers: { ...headers, 'content-type': 'application/xml' }, payload: '<body/>',
+  })
+  expect(response.statusCode).toBe(400)
+  expect(response.json()).toEqual({ error: { code: 'invalid_request' } })
+  expect(f.tokenIssuer).not.toHaveBeenCalled()
+})
+
+for (const dependency of ['tokenValidator', 'podLookup', 'tokenIssuer'] as const) {
+  test(`sanitizes ${dependency} failures in response and logs`, async ({ onTestFinished }) => {
+    const f = fixture()
+    onTestFinished(() => f.app.close())
+    const upstreamDetail = `upstream-private-body projected-secret ${issued.token}`
+    f[dependency].mockRejectedValue(new Error(upstreamDetail))
+    const response = await f.app.inject({ method: 'POST', url: '/v1/github-token', headers })
+    expect(response.statusCode).toBe(503)
+    expect(response.json()).toEqual({ error: { code: 'dependency_unavailable' } })
+    if (dependency === 'tokenValidator') expect(f.podLookup).not.toHaveBeenCalled()
+    if (dependency !== 'tokenIssuer') expect(f.tokenIssuer).not.toHaveBeenCalled()
+    else expect(f.tokenIssuer).toHaveBeenCalledOnce()
+    // Wait for request-completion logging before checking that no secret escaped.
+    await f.app.close()
+    for (const secret of ['upstream-private-body', 'projected-secret', issued.token]) {
+      expect(response.body).not.toContain(secret)
+      expect(f.logs()).not.toContain(secret)
+    }
+  })
+}

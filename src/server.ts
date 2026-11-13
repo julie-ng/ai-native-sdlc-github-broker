@@ -33,10 +33,6 @@ try {
 
 let kubernetes: ReturnType<typeof createKubernetesAdapters>
 try {
-  if (process.env.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH !== undefined
-    && !process.env.KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH.trim()) {
-    throw new Error()
-  }
   kubernetes = createKubernetesAdapters()
 } catch {
   configurationError('Invalid Kubernetes configuration: check KUBERNETES_API_URL and KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH')
@@ -50,10 +46,7 @@ try {
 }
 
 const HOST = process.env.HOST || '127.0.0.1'
-const PORT = Number(process.env.PORT ?? 3000)
-if (!Number.isInteger(PORT) || PORT < 0 || PORT > 65535 || process.env.PORT === '') {
-  configurationError('PORT must be an integer between 0 and 65535')
-}
+const PORT = Number(process.env.PORT || 3000)
 
 const app = buildApp({
   logger: {

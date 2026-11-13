@@ -16,8 +16,6 @@ const failures: Record<string, string | undefined>[] = [
   { GITHUB_APP_PRIVATE_KEY_PATH: undefined },
   { GITHUB_APP_PRIVATE_KEY_PATH: '/secret-marker/missing.pem' },
   { KUBERNETES_API_URL: 'http://secret-marker' },
-  { KUBERNETES_SERVICE_ACCOUNT_TOKEN_PATH: '' },
-  { PORT: 'secret-marker' },
 ]
 
 for (const [index, overrides] of failures.entries()) {

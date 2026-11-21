@@ -22,4 +22,5 @@ COPY --from=build /app/dist ./dist
 COPY package.json ./
 EXPOSE 3000
 CMD ["node", "dist/server.js"]
-USER node
+# Numeric UID/GID of the image's node user, matching runAsUser/runAsGroup in manifests/deployment.yaml.
+USER 1000:1000

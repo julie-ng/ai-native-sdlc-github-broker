@@ -9,7 +9,12 @@
   },
   "devDependencies": {
     "@astrojs/starlight": "0.42.8",
-    "astro": "7.4.4",
+    "astro": "7.4.13",
     "starlight-openapi": "0.27.0"
+  },
+  "overrides": {
+    "httpsnippet": {
+      "form-data": "4.0.6"
+    }
   }
 }
